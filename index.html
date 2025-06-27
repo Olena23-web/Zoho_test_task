@@ -1,0 +1,52 @@
+<div id="currency-widget">
+  <p>Курс НБУ: <span id="nbu-rate">—</span> ₴</p>
+  <p>Курс в Угоді: <span id="deal-rate">—</span> ₴</p>
+  <p>Різниця: <span id="difference">—</span>%</p>
+  <button id="update-btn" style="display: none;">Записати курс в Угоду</button>
+</div>
+
+<script>
+// Отримання даних при завантаженні
+document.addEventListener("DOMContentLoaded", function() {
+  const dealId = ZOHO.CRM.Storage.get("recordId"); // ID поточної угоди
+  
+  // 1. Отримання курсу НБУ (USD)
+  fetch("https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?valcode=USD&json")
+    .then(response => response.json())
+    .then(data => {
+      const nbuRate = data[0].rate.toFixed(2);
+      document.getElementById("nbu-rate").textContent = nbuRate;
+      
+      // 2. Отримання курсу з CRM
+      ZOHO.CRM.API.getRecord({ Entity: "Deals", RecordID: dealId })
+        .then(function(response) {
+          const dealRate = response.data[0].Currency_Rate || 0;
+          document.getElementById("deal-rate").textContent = dealRate;
+          
+          // 3. Розрахунок різниці
+          const difference = ((dealRate / nbuRate - 1) * 100).toFixed(1);
+          document.getElementById("difference").textContent = difference;
+          
+          // 4. Показати кнопку, якщо різниця ≥5%
+          if (Math.abs(difference) >= 5) {
+            document.getElementById("update-btn").style.display = "block";
+          }
+        });
+    });
+  
+  // Оновлення курсу при кліку
+  document.getElementById("update-btn").addEventListener("click", function() {
+    const nbuRate = document.getElementById("nbu-rate").textContent;
+    
+    ZOHO.CRM.API.updateRecord({
+      Entity: "Deals",
+      APIData: { "Currency_Rate": nbuRate },
+      Trigger: ["workflow"],
+      RecordID: dealId
+    }).then(function() {
+      alert("Курс оновлено!");
+      location.reload();
+    });
+  });
+});
+</script>
